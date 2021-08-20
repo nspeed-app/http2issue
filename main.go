@@ -23,13 +23,13 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
-// this program compare transfet speed of the Golang http server (and client) betwen HTTP1.1 and HTTP2
+// this program compares transfert speed of the Golang http server (and client) between HTTP1.1 and HTTP2
 // to avoid encryption ovearhead it uses H2C mode
 // usage: run with no argument to do a test with 10G of data
 // use the "-s" option to be in server only mode and use another program like curl (or https://nspeed.app) to test
 
 // build a 1MiB buffer of random data
-const MaxChunkSize = 1024 * 1024 // warning : 1 MiB //this will be allocated in memory
+const MaxChunkSize = 1024 * 1024 // warning : 1 MiB // this will be allocated in memory
 var BigChunk [MaxChunkSize]byte
 
 func InitBigChunk(seed int64) {
