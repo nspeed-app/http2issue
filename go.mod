@@ -1,4 +1,4 @@
-module http2speed.local
+module http2issue.local
 
 go 1.17
 
