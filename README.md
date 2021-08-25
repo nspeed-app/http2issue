@@ -43,3 +43,23 @@ http/1.1 vs http/2 with encryption:
     ./nspeed_linux_amd64 server -self -n 1 get -self -w 1 https://localhost:7333/10g
 
 example results: see [nspeed.results.txt](nspeed.results.txt)
+
+### Caddy
+
+    #https/2
+    curl -o /dev/null https://localhost:8082/10G.iso
+    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                    Dload  Upload   Total   Spent    Left  Speed
+    100 9536M  100 9536M    0     0   484M      0  0:00:19  0:00:19 --:--:--  483M
+
+    #https/1.1
+    curl -o /dev/null --http1.1 https://localhost:8082/10G.iso
+    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                    Dload  Upload   Total   Spent    Left  Speed
+    100 9536M  100 9536M    0     0   929M      0  0:00:10  0:00:10 --:--:--  935M
+
+    #http/1.1 (no encryption - max throughput reference)
+    curl -o /dev/null http://localhost:8081/10G.iso
+    % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                    Dload  Upload   Total   Spent    Left  Speed
+    100 9536M  100 9536M    0     0  1672M      0  0:00:05  0:00:05 --:--:-- 1687M
