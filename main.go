@@ -239,7 +239,7 @@ func main() {
 	}
 
 	//3. transfert 10G with http server
-	s1url := "http://localhost:8765/1000000000"
+	s1url := "http://localhost:8765/10000000000"
 	fmt.Printf("downloading %s\n", s1url)
 	err := Download(ctx, s1url, false)
 	if err != nil {
@@ -247,7 +247,7 @@ func main() {
 	}
 
 	//4. transfert 10G with http/2 server
-	s2url := "http://localhost:9876/1000000000"
+	s2url := "http://localhost:9876/10000000000"
 	fmt.Printf("downloading %s\n", s2url)
 	err = Download(ctx, s2url, true)
 	if err != nil {
