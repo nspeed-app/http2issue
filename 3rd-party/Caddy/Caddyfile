@@ -6,6 +6,7 @@
 # test with curl or nspeed:
 # curl -o /dev/null http://localhost:8081/10G.data
 # curl -o /dev/null https://localhost:8082/10G.data
+# curl -o /dev/null --http1.1 https://localhost:8082/10G.data
 # if curl complains about the certifcate, add -k option
 {
   http_port 8081
