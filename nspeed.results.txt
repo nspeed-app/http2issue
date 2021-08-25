@@ -1,0 +1,9 @@
+http/1.1 vs http/2 no encryption:
+
+ Job 1|  25.0 Gbps|       0 bps| 3.20|    10.0 GB|           0 B|get http://localhost:7333/10g (127.0.0.1:7333 - 0.473 ms)
+ Job 1|   6.7 Gbps|       0 bps| 9.00|     7.5 GB|           0 B|get -h2c http://localhost:7333/10g (127.0.0.1:7333 - 0.0 ms)
+
+http/1.1 vs http/2 with encryption:
+
+ Job 1|  11.2 Gbps|       0 bps| 7.15|    10.0 GB|           0 B|get -http11 https://localhost:7333/10g (127.0.0.1:7333 - 0.448 ms)
+ Job 1|   4.4 Gbps|       0 bps| 9.00|     4.9 GB|           0 B|get https://localhost:7333/10g (127.0.0.1:7333 - 0.442 ms)

@@ -25,8 +25,8 @@ with curl: launch `go run main.go -s` and in a separate shell:
                                     Dload  Upload   Total   Spent    Left  Speed
     100 9536M  100 9536M    0     0   958M      0  0:00:09  0:00:09 --:--:--  974M
 
-With nspeed: download nspeed at http://nspeed.app/
-see [nspeed-batch.sh](nspeed-batch.sh)
+With nspeed: download nspeed at http://nspeed.app/ 
+or execute [nspeed-batch.sh](nspeed-batch.sh)
 
 http/1.1 vs http/2 no encryption:
 
@@ -41,3 +41,5 @@ http/1.1 vs http/2 with encryption:
     ./nspeed_linux_amd64 server -self -n 1 get -self -http11 -w 1 https://localhost:7333/10g
     # http/2
     ./nspeed_linux_amd64 server -self -n 1 get -self -w 1 https://localhost:7333/10g
+
+example results: see [nspeed.results.txt](nspeed.results.txt)
