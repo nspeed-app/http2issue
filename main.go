@@ -15,7 +15,9 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime/pprof"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -106,8 +108,11 @@ func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 	f.Flush()
 }
 
-// create a HTTP server
-func createServer(ctx context.Context, host string, port int, useH2C bool) *http.Server {
+// create a HTTP server, wait for ctx.Done(), shutdown the server and signal the WaitGroup
+func createServer(ctx context.Context, host string, port int, useH2C bool, wg *sync.WaitGroup) {
+	wg.Add(1)
+	defer wg.Done()
+
 	listenAddr := net.JoinHostPort(host, strconv.Itoa(port))
 	server := &http.Server{
 		Addr:    listenAddr,
@@ -121,13 +126,6 @@ func createServer(ctx context.Context, host string, port int, useH2C bool) *http
 	if err != nil {
 		log.Fatalf("cannot listen to %s: %s", server.Addr, err)
 	}
-	// this spawns the server
-	go func() {
-		err = server.Serve(ln)
-		if err != nil {
-			log.Fatalf("cannot serve %s: %s", server.Addr, err)
-		}
-	}()
 
 	// this will wait for ctx.Done then shutdown the server
 	go func() {
@@ -136,7 +134,11 @@ func createServer(ctx context.Context, host string, port int, useH2C bool) *http
 		defer cancel()
 		server.Shutdown(ctx)
 	}()
-	return server
+
+	err = server.Serve(ln)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("cannot serve %s: %s", server.Addr, err)
+	}
 }
 
 // http client, download the url to 'null' (discard)
@@ -178,6 +180,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		var totalReceived int64 = 0
 		totalReceived, err = io.Copy(ioutil.Discard, resp.Body)
 		duration := time.Since(startDate)
+		resp.Body.Close()
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				return err
@@ -189,10 +192,23 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 }
 
 var optTest = flag.Bool("s", false, "server mode only")
+var optCpuProfile = flag.String("cpuprof", "", "write cpu profile to file")
 
 func main() {
 
 	flag.Parse()
+
+	if *optCpuProfile != "" {
+		f, err := os.Create(*optCpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer func() {
+			//fmt.Println("StopCPUProfile")
+			pprof.StopCPUProfile()
+		}()
+	}
 
 	StreamPathRegexp = regexp.MustCompile("^(" + "[0-9]+" + ")$")
 	ctx, cancel := context.WithCancel(context.Background())
@@ -206,13 +222,15 @@ func main() {
 		cancel()
 	}()
 
+	var wg sync.WaitGroup
+
 	//1. create a http server
-	s1 := createServer(ctx, "", 8765, true)
-	fmt.Printf("server created and listening at %s (http1.1)\n", s1.Addr)
+	go createServer(ctx, "", 8765, true, &wg)
+	fmt.Printf("server created and listening at %s (http1.1)\n", "8765")
 
 	//2. create a http/2 (h2c) server
-	s2 := createServer(ctx, "", 9876, true)
-	fmt.Printf("server created and listening at %s (http/2 cleartext)\n", s2.Addr)
+	go createServer(ctx, "", 9876, true, &wg)
+	fmt.Printf("server created and listening at %s (http/2 cleartext)\n", "9876")
 
 	// if server mode, just wait forever for something else to cancel
 	if *optTest {
@@ -221,7 +239,7 @@ func main() {
 	}
 
 	//3. transfert 10G with http server
-	s1url := "http://localhost:8765/10000000000"
+	s1url := "http://localhost:8765/1000000000"
 	fmt.Printf("downloading %s\n", s1url)
 	err := Download(ctx, s1url, false)
 	if err != nil {
@@ -229,13 +247,16 @@ func main() {
 	}
 
 	//4. transfert 10G with http/2 server
-	s2url := "http://localhost:9876/10000000000"
+	s2url := "http://localhost:9876/1000000000"
 	fmt.Printf("downloading %s\n", s2url)
 	err = Download(ctx, s2url, true)
 	if err != nil {
 		fmt.Printf("client error for %s: %s\n", s2url, err)
+	} else {
+		fmt.Printf("no client error for %s\n", s2url)
 	}
 	cancel()
+	wg.Wait()
 }
 
 // human friendly formatting stuff
