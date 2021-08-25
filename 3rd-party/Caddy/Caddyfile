@@ -1,5 +1,12 @@
 # sample CAddy for testing speed
-# 
+# how tot test:
+# /path/to/root/www : change this, use a folder on a sdd or big /tmp (ramdisk) 
+# create a big file inside this folder: fallocate -l 10G /path/to/root/www/10G.data
+# start Caddy: caddy run (might need to do a : "caddy adapt -config /path/to/this/Caddyfile")
+# test with curl or nspeed:
+# curl -o /dev/null http://localhost:8081/10G.data
+# curl -o /dev/null https://localhost:8082/10G.data
+# if curl complains about the certifcate, add -k option
 {
   http_port 8081
   https_port 8082
