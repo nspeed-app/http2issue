@@ -1,0 +1,16 @@
+# sample CAddy for testing speed
+# 
+{
+  http_port 8081
+  https_port 8082
+}
+https://localhost:8082 {
+  root * /path/to/root/www
+  file_server browse
+  tls internal
+  #tls localhost.pem localhost-key.pem 
+}
+http://localhost:8081 {
+  root * /path/to/root/www
+  file_server browse
+}

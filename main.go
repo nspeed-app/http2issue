@@ -252,8 +252,6 @@ func main() {
 	err = Download(ctx, s2url, true)
 	if err != nil {
 		fmt.Printf("client error for %s: %s\n", s2url, err)
-	} else {
-		fmt.Printf("no client error for %s\n", s2url)
 	}
 	cancel()
 	wg.Wait()
