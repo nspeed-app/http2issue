@@ -191,8 +191,22 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 	return err
 }
 
-var optTest = flag.Bool("s", false, "server mode only")
+// client just like "curl -o /dev/null url"
+func doClient(ctx context.Context, url string, h2c bool) error {
+	fmt.Printf("downloading %s\n", url)
+	err := Download(ctx, url, h2c)
+	if err != nil {
+		fmt.Printf("client error for %s: %s\n", url, err)
+	}
+	return err
+}
+
+var optServer = flag.Bool("s", false, "server mode only")
+var optClient = flag.String("c", "", "client only mode, connect to url")
+var optH2C = flag.Bool("h2c", false, "force h2c")
 var optCpuProfile = flag.String("cpuprof", "", "write cpu profile to file")
+var optT1 = flag.Bool("t1", true, "do predifined test 1")
+var optT2 = flag.Bool("t2", true, "do predifined test 2")
 
 func main() {
 
@@ -224,34 +238,31 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	//1. create a http server
-	go createServer(ctx, "", 8765, true, &wg)
-	fmt.Printf("server created and listening at %s (http1.1)\n", "8765")
+	if *optClient == "" {
+		//1. create a http server
+		go createServer(ctx, "", 8765, true, &wg)
+		fmt.Printf("server created and listening at %s (http1.1)\n", "8765")
 
-	//2. create a http/2 (h2c) server
-	go createServer(ctx, "", 9876, true, &wg)
-	fmt.Printf("server created and listening at %s (http/2 cleartext)\n", "9876")
+		//2. create a http/2 (h2c) server
+		go createServer(ctx, "", 9876, true, &wg)
+		fmt.Printf("server created and listening at %s (http/2 cleartext)\n", "9876")
 
-	// if server mode, just wait forever for something else to cancel
-	if *optTest {
-		fmt.Printf("server mode on\n")
-		<-ctx.Done()
+		// if server mode, just wait forever for something else to cancel
+		if *optServer {
+			fmt.Printf("server mode on\n")
+			<-ctx.Done()
+			return
+		}
+	} else {
+		doClient(ctx, *optClient, *optH2C)
+		return
 	}
 
-	//3. transfert 10G with http server
-	s1url := "http://localhost:8765/10000000000"
-	fmt.Printf("downloading %s\n", s1url)
-	err := Download(ctx, s1url, false)
-	if err != nil {
-		fmt.Printf("client error for %s: %s\n", s1url, err)
+	if *optT1 {
+		doClient(ctx, "http://localhost:8765/10000000000", false)
 	}
-
-	//4. transfert 10G with http/2 server
-	s2url := "http://localhost:9876/10000000000"
-	fmt.Printf("downloading %s\n", s2url)
-	err = Download(ctx, s2url, true)
-	if err != nil {
-		fmt.Printf("client error for %s: %s\n", s2url, err)
+	if *optT2 {
+		doClient(ctx, "http://localhost:9876/10000000000", true)
 	}
 	cancel()
 	wg.Wait()
