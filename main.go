@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -15,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"sync"
@@ -39,6 +39,31 @@ func InitBigChunk(seed int64) {
 	for i := int64(0); i < MaxChunkSize; i++ {
 		BigChunk[i] = byte(rng.Intn(256))
 	}
+}
+
+// io.writer
+// Writer - performance sensitive, don't do much here
+type Metrics struct {
+	mutex              sync.Mutex
+	StepSize           int64
+	TransfertStartTime time.Time
+	ElapsedTime        time.Duration
+	TotalRead          int64
+	ReadCount          int64
+}
+
+func (wm *Metrics) Write(p []byte) (int, error) {
+	n := len(p)
+	s := int64(n)
+	wm.mutex.Lock()
+	defer wm.mutex.Unlock()
+	if s > wm.StepSize {
+		wm.StepSize = s
+	}
+	wm.ElapsedTime = time.Since(wm.TransfertStartTime)
+	wm.TotalRead += s
+	wm.ReadCount++
+	return n, nil
 }
 
 // regexp to parse url
@@ -178,7 +203,8 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		fmt.Printf("receiving data with %s\n", resp.Proto)
 		startDate := time.Now()
 		var totalReceived int64 = 0
-		totalReceived, err = io.Copy(ioutil.Discard, resp.Body)
+		wm := Metrics{}
+		totalReceived, err = io.Copy(&wm, resp.Body)
 		duration := time.Since(startDate)
 		resp.Body.Close()
 		if err != nil {
@@ -186,7 +212,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 				return err
 			}
 		}
-		fmt.Printf("received %d bytes in %v = %s\n", totalReceived, duration, FormatBitperSecond(duration.Seconds(), totalReceived))
+		fmt.Printf("received %d bytes in %v = %s, %d Write ops\n", totalReceived, duration, FormatBitperSecond(duration.Seconds(), totalReceived), wm.ReadCount)
 	}
 	return err
 }
@@ -214,6 +240,7 @@ func main() {
 	flag.Parse()
 
 	if *optCpuProfile != "" {
+		runtime.SetBlockProfileRate(1)
 		f, err := os.Create(*optCpuProfile)
 		if err != nil {
 			log.Fatal(err)
@@ -229,6 +256,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	InitBigChunk(time.Now().Unix())
 	// this wait for ctrl-c or kill signal and call cancel()
 	go func() {
 		ch := make(chan os.Signal, 1)
@@ -258,6 +286,9 @@ func main() {
 		doClient(ctx, *optClient, *optH2C)
 		return
 	}
+
+	// give time for server(s) to start
+	time.Sleep(1 * time.Second)
 
 	if *optT1 {
 		doClient(ctx, fmt.Sprintf("http://localhost:8765/%d", *optSize), false)
