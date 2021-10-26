@@ -207,6 +207,7 @@ var optH2C = flag.Bool("h2c", false, "force h2c")
 var optCpuProfile = flag.String("cpuprof", "", "write cpu profile to file")
 var optT1 = flag.Bool("t1", true, "do predifined test 1")
 var optT2 = flag.Bool("t2", true, "do predifined test 2")
+var optSize = flag.Uint64("b", 10000000000, "number of bytes to transfert")
 
 func main() {
 
@@ -259,10 +260,10 @@ func main() {
 	}
 
 	if *optT1 {
-		doClient(ctx, "http://localhost:8765/10000000000", false)
+		doClient(ctx, fmt.Sprintf("http://localhost:8765/%d", *optSize), false)
 	}
 	if *optT2 {
-		doClient(ctx, "http://localhost:9876/10000000000", true)
+		doClient(ctx, fmt.Sprintf("http://localhost:9876/%d", *optSize), true)
 	}
 	cancel()
 	wg.Wait()
