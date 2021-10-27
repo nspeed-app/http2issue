@@ -41,27 +41,41 @@ func InitBigChunk(seed int64) {
 	}
 }
 
-// io.writer
-// Writer - performance sensitive, don't do much here
-type Metrics struct {
-	mutex              sync.Mutex
-	StepSize           int64
-	TransfertStartTime time.Time
-	ElapsedTime        time.Duration
-	TotalRead          int64
-	ReadCount          int64
+func init() {
+	InitBigChunk(time.Now().Unix())
 }
 
+// implements io.Discard
+type Metrics struct {
+	mu          sync.Mutex
+	StepSize    int64
+	StartTime   time.Time
+	ElapsedTime time.Duration
+	TotalRead   int64
+	ReadCount   int64
+}
+
+// Write - performance sensitive, don't do much here
+// it's basically a io.Discard with some metrics stored
 func (wm *Metrics) Write(p []byte) (int, error) {
 	n := len(p)
 	s := int64(n)
-	wm.mutex.Lock()
-	defer wm.mutex.Unlock()
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
+
+	// store bigest step size
 	if s > wm.StepSize {
 		wm.StepSize = s
 	}
-	wm.ElapsedTime = time.Since(wm.TransfertStartTime)
+
 	wm.TotalRead += s
+
+	// store elasped time
+	if wm.ReadCount == 0 {
+		wm.StartTime = time.Now()
+	} else {
+		wm.ElapsedTime = time.Since(wm.StartTime)
+	}
 	wm.ReadCount++
 	return n, nil
 }
@@ -134,7 +148,7 @@ func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 }
 
 // create a HTTP server, wait for ctx.Done(), shutdown the server and signal the WaitGroup
-func createServer(ctx context.Context, host string, port int, useH2C bool, wg *sync.WaitGroup) {
+func createServer(ctx context.Context, host string, port int, useH2C bool, wg *sync.WaitGroup, ready chan bool) {
 	wg.Add(1)
 	defer wg.Done()
 
@@ -159,6 +173,9 @@ func createServer(ctx context.Context, host string, port int, useH2C bool, wg *s
 		defer cancel()
 		server.Shutdown(ctx)
 	}()
+
+	// signal the server is listening
+	ready <- true
 
 	err = server.Serve(ln)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -212,7 +229,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 				return err
 			}
 		}
-		fmt.Printf("received %d bytes in %v = %s, %d Write ops\n", totalReceived, duration, FormatBitperSecond(duration.Seconds(), totalReceived), wm.ReadCount)
+		fmt.Printf("received %d bytes in %v = %s, %d write ops\n", totalReceived, duration, FormatBitperSecond(duration.Seconds(), totalReceived), wm.ReadCount)
 	}
 	return err
 }
@@ -256,7 +273,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	InitBigChunk(time.Now().Unix())
 	// this wait for ctrl-c or kill signal and call cancel()
 	go func() {
 		ch := make(chan os.Signal, 1)
@@ -268,12 +284,16 @@ func main() {
 	var wg sync.WaitGroup
 
 	if *optClient == "" {
+		ready := make(chan bool)
+
 		//1. create a http server
-		go createServer(ctx, "", 8765, true, &wg)
+		go createServer(ctx, "", 8765, true, &wg, ready)
+		<-ready
 		fmt.Printf("server created and listening at %s (http1.1)\n", "8765")
 
 		//2. create a http/2 (h2c) server
-		go createServer(ctx, "", 9876, true, &wg)
+		go createServer(ctx, "", 9876, true, &wg, ready)
+		<-ready
 		fmt.Printf("server created and listening at %s (http/2 cleartext)\n", "9876")
 
 		// if server mode, just wait forever for something else to cancel
@@ -286,9 +306,6 @@ func main() {
 		doClient(ctx, *optClient, *optH2C)
 		return
 	}
-
-	// give time for server(s) to start
-	time.Sleep(1 * time.Second)
 
 	if *optT1 {
 		doClient(ctx, fmt.Sprintf("http://localhost:8765/%d", *optSize), false)
