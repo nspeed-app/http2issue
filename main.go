@@ -34,6 +34,8 @@ import (
 const MaxChunkSize = 1024 * 1024 // warning : 1 MiB // this will be allocated in memory
 var BigChunk [MaxChunkSize]byte
 
+//var bigbuff [4 * 1024 * 1024]byte
+
 func InitBigChunk(seed int64) {
 	rng := rand.New(rand.NewSource(seed))
 	for i := int64(0); i < MaxChunkSize; i++ {
@@ -120,7 +122,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 
 	// the buffer we use to send data
-	var chunkSize int64 = 32 * 1024 // 32K chunk (sweet spot value may depend on OS & hardware)
+	var chunkSize int64 = 256 * 1024 // 256KiB chunk (sweet spot value may depend on OS & hardware)
 	if chunkSize > MaxChunkSize {
 		log.Fatal("chunksize is too big")
 	}
@@ -190,9 +192,8 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		Timeout:       5 * time.Second, // fail quick
 		FallbackDelay: -1,              // don't use Happy Eyeballs
 	}
-	var netTransport = &http.Transport{
-		DialContext: dialer.DialContext,
-	}
+	var netTransport = http.DefaultTransport.(*http.Transport)
+	netTransport.DialContext = dialer.DialContext
 	var rt http.RoundTripper = netTransport
 
 	if useH2C {
@@ -201,6 +202,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 				return dialer.Dial(network, addr)
 			},
+			// MaxFrameSize: 256 * 1024,
 		}
 	}
 	c := &http.Client{
@@ -221,6 +223,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		startDate := time.Now()
 		var totalReceived int64 = 0
 		wm := Metrics{}
+		//totalReceived, err = io.CopyBuffer(&wm, resp.Body, bigbuff[:])
 		totalReceived, err = io.Copy(&wm, resp.Body)
 		duration := time.Since(startDate)
 		resp.Body.Close()
