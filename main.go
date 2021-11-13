@@ -34,7 +34,7 @@ import (
 const MaxChunkSize = 1024 * 1024 // warning : 1 MiB // this will be allocated in memory
 var BigChunk [MaxChunkSize]byte
 
-//var bigbuff [4 * 1024 * 1024]byte
+var bigbuff [4 * 1024 * 1024]byte
 
 func InitBigChunk(seed int64) {
 	rng := rand.New(rand.NewSource(seed))
@@ -192,21 +192,25 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		Timeout:       5 * time.Second, // fail quick
 		FallbackDelay: -1,              // don't use Happy Eyeballs
 	}
-	var netTransport = http.DefaultTransport.(*http.Transport)
+	var netTransport = http.DefaultTransport.(*http.Transport).Clone()
 	netTransport.DialContext = dialer.DialContext
 	var rt http.RoundTripper = netTransport
 
 	if useH2C {
+		// ConfigureTransports bugged ?
+		// rt2, err := http2.ConfigureTransports(netTransport)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// rt2.AllowHTTP = true
+		// rt2.MaxFrameSize = 256 * 1024
 		rt = &http2.Transport{
 			AllowHTTP: true,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 				return dialer.Dial(network, addr)
 			},
-			// MaxFrameSize: 256 * 1024,
+			//MaxFrameSize: 256 * 1024,
 		}
-	}
-	c := &http.Client{
-		Transport: rt,
 	}
 
 	var body io.ReadCloser = http.NoBody
@@ -216,23 +220,19 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 		return err
 	}
 
-	resp, err := c.Do(req)
+	resp, err := rt.RoundTrip(req)
 
 	if err == nil && resp != nil {
 		fmt.Printf("receiving data with %s\n", resp.Proto)
-		startDate := time.Now()
-		var totalReceived int64 = 0
 		wm := Metrics{}
-		//totalReceived, err = io.CopyBuffer(&wm, resp.Body, bigbuff[:])
-		totalReceived, err = io.Copy(&wm, resp.Body)
-		duration := time.Since(startDate)
+		_, err = io.CopyBuffer(&wm, resp.Body, bigbuff[:])
 		resp.Body.Close()
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
 				return err
 			}
 		}
-		fmt.Printf("received %d bytes in %v = %s, %d write ops\n", totalReceived, duration, FormatBitperSecond(duration.Seconds(), totalReceived), wm.ReadCount)
+		fmt.Printf("received %d bytes in %v = %s, %d write ops\n", wm.TotalRead, wm.ElapsedTime, FormatBitperSecond(wm.ElapsedTime.Seconds(), wm.TotalRead), wm.ReadCount)
 	}
 	return err
 }
