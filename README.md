@@ -2,14 +2,17 @@
 
 `go run main.go` on Intel(R) Core(TM) i7-8559U CPU @ 2.70GHz gives:
 
-    server created and listening at :8765 (http1.1)
-    server created and listening at :9876 (http/2 cleartext)
+    server created and listening at 8765 (http1.1)
+    server created and listening at 9876 (http/2 cleartext)
     downloading http://localhost:8765/10000000000
     receiving data with HTTP/1.1
-    received 10000000000 bytes in 1.996206772s = 40.1 Gbps
+    server sent 10000000000 bytes in 1.448894821s = 55.2 Gbps (262144 chunks)
+    client received 10000000000 bytes in 1.448774771s = 55.2 Gbps, 189969 write ops, 2360568 buff 
     downloading http://localhost:9876/10000000000
     receiving data with HTTP/2.0
-    received 10000000000 bytes in 11.259359779s = 7.1 Gbps
+    server sent 10000000000 bytes in 8.313647415s = 9.6 Gbps (262144 chunks)
+    client received 10000000000 bytes in 8.313532464s = 9.6 Gbps, 429444 write ops, 966656 buff 
+
 
 so roughly x5 slower
 
