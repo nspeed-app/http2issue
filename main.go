@@ -34,7 +34,7 @@ import (
 const MaxChunkSize = 1024 * 1024 // warning : 1 MiB // this will be allocated in memory
 var BigChunk [MaxChunkSize]byte
 
-var bigbuff [4 * 1024 * 1024]byte
+var bigbuff [8 * 1024 * 1024]byte
 
 func InitBigChunk(seed int64) {
 	rng := rand.New(rand.NewSource(seed))
@@ -55,6 +55,32 @@ type Metrics struct {
 	ElapsedTime time.Duration
 	TotalRead   int64
 	ReadCount   int64
+}
+
+// ReadFrom version- performance sensitive, don't do much here
+// it's basically a io.Discard with some metrics stored
+func (wm *Metrics) ReadFrom(r io.Reader) (n int64, err error) {
+
+	wm.StartTime = time.Now()
+	wm.TotalRead = 0
+	wm.ReadCount = 0
+	wm.StepSize = 0
+
+	for {
+		read, err := r.Read(bigbuff[:])
+		s := int64(read)
+		wm.ReadCount++
+		wm.TotalRead += s
+		if wm.StepSize < s {
+			wm.StepSize = s
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	wm.ElapsedTime = time.Since(wm.StartTime)
+	return wm.TotalRead, nil
 }
 
 // Write - performance sensitive, don't do much here
@@ -132,6 +158,8 @@ func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
 	//fmt.Printf("header sent to %s: %s\n", r.RemoteAddr, r.URL)
 
+	startTime := time.Now()
+
 	hasEnded := false
 	var numChunk = size / chunkSize
 	for i := int64(0); i < numChunk; i++ {
@@ -147,6 +175,9 @@ func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 
 	f := w.(http.Flusher)
 	f.Flush()
+
+	duration := time.Since(startTime)
+	fmt.Printf("server sent %d bytes in %s = %s (%d chunks)\n", size, duration, FormatBitperSecond(duration.Seconds(), size), chunkSize)
 }
 
 // create a HTTP server, wait for ctx.Done(), shutdown the server and signal the WaitGroup
@@ -215,7 +246,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 				//fmt.Printf("DialTLS rt called\n")
 				return dialer.Dial(network, addr)
 			},
-			//MaxFrameSize: 256 * 1024,
+			// MaxFrameSize: 256 * 1024, // for perf fix cl: https://go-review.googlesource.com/c/net/+/362834
 		}
 	}
 
@@ -238,7 +269,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 				return err
 			}
 		}
-		fmt.Printf("received %d bytes in %v = %s, %d write ops\n", wm.TotalRead, wm.ElapsedTime, FormatBitperSecond(wm.ElapsedTime.Seconds(), wm.TotalRead), wm.ReadCount)
+		fmt.Printf("client received %d bytes in %v = %s, %d write ops, %d buff \n", wm.TotalRead, wm.ElapsedTime, FormatBitperSecond(wm.ElapsedTime.Seconds(), wm.TotalRead), wm.ReadCount, wm.StepSize)
 	}
 	return err
 }
