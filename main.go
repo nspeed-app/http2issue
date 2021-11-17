@@ -202,6 +202,7 @@ func createServer(ctx context.Context, host string, port int, useH2C bool, wg *s
 	// this will wait for ctx.Done then shutdown the server
 	go func() {
 		<-ctx.Done()
+		fmt.Printf("server %s shuting down\n", listenAddr)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		server.Shutdown(ctx)
@@ -310,16 +311,8 @@ func main() {
 	}
 
 	StreamPathRegexp = regexp.MustCompile("^(" + "[0-9]+" + ")$")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-
-	// this wait for ctrl-c or kill signal and call cancel()
-	go func() {
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		cancel()
-	}()
 
 	var wg sync.WaitGroup
 
