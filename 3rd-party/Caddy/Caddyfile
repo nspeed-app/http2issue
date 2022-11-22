@@ -11,6 +11,7 @@
 {
   http_port 8081
   https_port 8082
+  experimental_http3
 }
 https://localhost:8082 {
   root * /path/to/root/www

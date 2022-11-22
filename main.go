@@ -34,7 +34,7 @@ import (
 const MaxChunkSize = 1024 * 1024 // warning : 1 MiB // this will be allocated in memory
 var BigChunk [MaxChunkSize]byte
 
-var bigbuff [8 * 1024 * 1024]byte
+var bigbuff [16 * 1024 * 1024]byte
 
 func InitBigChunk(seed int64) {
 	rng := rand.New(rand.NewSource(seed))
@@ -140,6 +140,26 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Not found (no regexp match)", http.StatusNotFound)
 			return
 		}
+	}
+	if method == "POST" {
+		startedAt := time.Now()
+		fmt.Printf("%s - starting Upload (%s) of %d bytes from %s\n", startedAt.Format("2006-01-02 15:04:05"), r.Proto, r.ContentLength, r.RemoteAddr)
+		n, err := io.CopyBuffer(io.Discard, r.Body, bigbuff[:])
+		endedAt := time.Now()
+		dur := endedAt.Sub(startedAt)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("upload error %v", err), http.StatusInternalServerError)
+		}
+		report := fmt.Sprintf("%s - received %d bytes in %s (%s) with %s from  %s (expected %d bytes)\n",
+			endedAt.Format("2006-01-02 15:04:05"),
+			n,
+			dur,
+			FormatBitperSecond(dur.Seconds(), n),
+			r.Proto, r.RemoteAddr, r.ContentLength)
+		fmt.Print(report)
+		w.Write([]byte(report))
+		return
+
 	}
 	http.Error(w, "unhandled method", http.StatusBadRequest)
 }
@@ -247,7 +267,7 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 				//fmt.Printf("DialTLS rt called\n")
 				return dialer.Dial(network, addr)
 			},
-			// MaxFrameSize: 256 * 1024, // for perf fix cl: https://go-review.googlesource.com/c/net/+/362834
+			//MaxFrameSize: 256 * 1024, // for perf fix cl: https://go-review.googlesource.com/c/net/+/362834
 		}
 	}
 
