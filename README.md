@@ -1,5 +1,8 @@
 [![SLSA go releaser](https://github.com/nspeed-app/http2issue/actions/workflows/go-ossf-slsa3-publish.yml/badge.svg)](https://github.com/nspeed-app/http2issue/actions/workflows/go-ossf-slsa3-publish.yml)
 
+## this is a PoC to test HTTP1.1 vs HTTP/2 (H2C-no encryption) with golang
+
+a binary is released
 ## golang std lib http/2 throughput speed is much slower than http/1
 
 `go run main.go` on Intel(R) Core(TM) i7-8559U CPU @ 2.70GHz gives:
