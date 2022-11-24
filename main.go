@@ -156,7 +156,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 			dur,
 			FormatBitperSecond(dur.Seconds(), n),
 			r.Proto, r.RemoteAddr, r.ContentLength)
-		fmt.Print(report)
+		fmt.Println(report)
 		w.Write([]byte(report))
 		return
 
@@ -180,24 +180,27 @@ func streamBytes(w http.ResponseWriter, r *http.Request, size int64) {
 
 	startTime := time.Now()
 
+	size_tx := int64(0)
 	hasEnded := false
 	var numChunk = size / chunkSize
 	for i := int64(0); i < numChunk; i++ {
-		_, err := w.Write(chunk)
+		n, err := w.Write(chunk)
+		size_tx = size_tx + int64(n)
 		if err != nil {
 			hasEnded = true
 			break
 		}
 	}
 	if size%chunkSize > 0 && !hasEnded {
-		w.Write(chunk[:size%chunkSize])
+		n, _ := w.Write(chunk[:size%chunkSize])
+		size_tx = size_tx + int64(n)
 	}
 
 	f := w.(http.Flusher)
 	f.Flush()
 
 	duration := time.Since(startTime)
-	fmt.Printf("server sent %d bytes in %s = %s (%d chunks)\n", size, duration, FormatBitperSecond(duration.Seconds(), size), chunkSize)
+	fmt.Printf("server sent %d bytes in %s = %s (%d chunks) to %s\n", size_tx, duration, FormatBitperSecond(duration.Seconds(), size_tx), chunkSize, r.RemoteAddr)
 }
 
 // create a HTTP server, wait for ctx.Done(), shutdown the server and signal the WaitGroup
@@ -382,7 +385,7 @@ func FormatBitperSecond(elapsedSeconds float64, totalBytes int64) string {
 	}()
 	speed := "(too fast)"
 	if elapsedSeconds > 0 {
-		speed = ByteCountDecimal((int64)((float64)(totalBytes)*8.0/elapsedSeconds)) + "bps"
+		speed = ByteCountDecimal((int64)(((float64)(totalBytes)*8.0)/elapsedSeconds)) + "bps"
 	}
 	return speed
 }
