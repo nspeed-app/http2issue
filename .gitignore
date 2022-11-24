@@ -2,3 +2,4 @@ http2issue
 *.prof
 nspeed
 *.exe
+dist/
