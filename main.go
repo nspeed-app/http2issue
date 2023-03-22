@@ -252,25 +252,12 @@ func Download(ctx context.Context, url string, useH2C bool) error {
 	var rt http.RoundTripper = netTransport
 
 	if useH2C {
-		// // ConfigureTransports bugged ?
-		// rt2, err := http2.ConfigureTransports(netTransport)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-		// rt2.AllowHTTP = true
-		// //rt2.MaxFrameSize = 256 * 1024
-		// rt2.DialTLS = func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-		// 	fmt.Printf("DialTLS rt2 called\n")
-		// 	return dialer.Dial(network, addr)
-		// }
-
 		rt = &http2.Transport{
 			AllowHTTP: true,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-				//fmt.Printf("DialTLS rt called\n")
 				return dialer.Dial(network, addr)
 			},
-			//MaxFrameSize: 256 * 1024, // for perf fix cl: https://go-review.googlesource.com/c/net/+/362834
+			MaxReadFrameSize: 256 * 1024, // for perf fix since cl: https://go-review.googlesource.com/c/net/+/362834
 		}
 	}
 
