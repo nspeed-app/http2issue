@@ -5,13 +5,12 @@
 # start Caddy: caddy run (might need to do a : "caddy adapt -config /path/to/this/Caddyfile")
 # test with curl or nspeed:
 # curl -o /dev/null http://localhost:8081/10G.data
-# curl -o /dev/null https://localhost:8082/10G.data
+# curl -o /dev/null --http2 https://localhost:8082/10G.data
 # curl -o /dev/null --http1.1 https://localhost:8082/10G.data
 # if curl complains about the certifcate, add -k option
 {
   http_port 8081
   https_port 8082
-  experimental_http3
 }
 https://localhost:8082 {
   root * /path/to/root/www
